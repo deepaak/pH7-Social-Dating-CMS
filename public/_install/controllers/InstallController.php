@@ -30,7 +30,7 @@ class InstallController extends Controller
 
         $this->_sGamePath = PH7_PATH_PUBLIC_DATA_SYS_MOD . 'game/';
         $this->_sGameDownloadPath = self::SOFTWARE_DOWNLOAD_URL . 'games/pH7_game.zip';
-        $this->_sRedirectUrlNoLicense = self::SOFTWARE_WEBSITE;
+        $this->_sRedirectUrlNoLicense = self::SOFTWARE_LICENSE_KEY_URL;
     }
 
     /********************* STEP 1 *********************/
@@ -421,7 +421,7 @@ class InstallController extends Controller
 
                                                         $_SESSION['step5'] = 1;
 
-                                                        redirect(PH7_URL_SLUG_INSTALL . 'finish');
+                                                        redirect(PH7_URL_SLUG_INSTALL . 'service');
                                                     }
                                                     catch (\PDOException $oE)
                                                     {
@@ -496,7 +496,7 @@ class InstallController extends Controller
         }
         else
         {
-            redirect(PH7_URL_SLUG_INSTALL . 'finish');
+            redirect(PH7_URL_SLUG_INSTALL . 'service');
         }
 
         $this->view->assign('sept_number', 5);
@@ -506,43 +506,80 @@ class InstallController extends Controller
     }
 
     /********************* STEP 6 *********************/
+    public function service ()
+    {
+        if (!empty($_SESSION['step5']))
+        {
+            if ($_SESSION['status_license'] == 'success')
+            {
+                $_SESSION['step6'] = 1;
+            }
+            else
+            {
+                redirect($this->_sRedirectUrlNoLicense);
+            }
+        }
+        else
+        {
+            redirect(PH7_URL_SLUG_INSTALL . 'config_site');
+        }
+
+        $this->view->assign('sept_number', 6);
+        $this->view->display('service.tpl');
+    }
+
+    /********************* STEP 7 *********************/
     public function finish ()
     {
         global $LANG;
 
-        @require_once(PH7_ROOT_PUBLIC . '_constants.php');
-
-        if (!empty($_SESSION['value']))
+        if (!empty($_SESSION['step6']))
         {
-            // Send email for finish instalation.
-            $aParams = array(
-                'to' => $_SESSION['value']['admin_login_email'],
-                'subject' => $LANG['title_email_finish_install'],
-                'body' => $LANG['content_email_finish_install']
-            );
-            send_mail($aParams);
+            if ($_SESSION['status_license'] == 'success')
+            {
+                @require_once(PH7_ROOT_PUBLIC . '_constants.php');
+
+                if (!empty($_SESSION['value']))
+                {
+                    // Send email for finish instalation.
+                    $aParams = array(
+                        'to' => $_SESSION['value']['admin_login_email'],
+                        'subject' => $LANG['title_email_finish_install'],
+                        'body' => $LANG['content_email_finish_install']
+                    );
+                    send_mail($aParams);
+                }
+
+                $_SESSION = array();
+                /* Remove the sessions */
+                session_unset();
+                session_destroy();
+
+                /* Remove the cookie */
+                $sCookieName = Controller::SOFTWARE_PREFIX_COOKIE_NAME . '_install_lang';
+
+                // We are asking the browser to delete the cookie.
+                setcookie($sCookieName);
+                // and we delete the cookie value locally to avoid using it by mistake in following our script.
+                unset($_COOKIE[$sCookieName]);
+
+                if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['confirm_remove_install']))
+                {
+                    remove_install_dir();
+                    exit(header('Location: ' . PH7_URL_ROOT));
+                }
+            }
+            else
+            {
+                redirect($this->_sRedirectUrlNoLicense);
+            }
+        }
+        else
+        {
+            redirect(PH7_URL_SLUG_INSTALL . 'service');
         }
 
-        $_SESSION = array();
-        /* Remote the sessions */
-        session_unset();
-        session_destroy();
-
-        /* Remove the cookie */
-        $sCookieName = Controller::SOFTWARE_PREFIX_COOKIE_NAME . '_install_lang';
-
-        // We are asking the browser to delete the cookie.
-        setcookie($sCookieName);
-        // and we delete the cookie value locally to avoid using it by mistake in following our script.
-        unset($_COOKIE[$sCookieName]);
-
-        if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($_POST['confirm_remove_install']))
-        {
-            remove_install_dir();
-            exit(header('Location: ' . PH7_URL_ROOT));
-        }
-
-        $this->view->assign('sept_number', 6);
+        $this->view->assign('sept_number', 7);
         $this->view->display('finish.tpl');
     }
 
